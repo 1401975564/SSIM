@@ -48,12 +48,6 @@ def get_args_parser():
     parser = argparse.ArgumentParser('DINO', add_help=False)
 
     # Model parameters
-#     parser.add_argument('--arch', default='vit_small', type=str,
-#         choices=['vit_tiny', 'vit_small', 'vit_base', 'xcit', 'deit_tiny', 'deit_small'] \
-#                 + torchvision_archs + torch.hub.list("facebookresearch/xcit:main"),
-#         help="""Name of architecture to train. For quick experiments with ViTs,
-#         we recommend using vit_tiny or vit_small.""")
-    
     parser.add_argument('--arch', default='vit_tiny', type=str,
         choices=['vit_tiny', 'vit_small', 'vit_base', 'xcit', 'deit_tiny', 'deit_small'] \
                 + torchvision_archs + torch.hub.list("facebookresearch/xcit:main"),
@@ -131,9 +125,9 @@ def get_args_parser():
         Used for small local view cropping of multi-crop.""")
 
     # Misc
-    parser.add_argument('--data_path', default='/root/autodl-fs/cifar-10/train/', type=str,
+    parser.add_argument('--data_path', default='/root/cifar-10/train/', type=str,
         help='Please specify path to the ImageNet training data.')
-    parser.add_argument('--bin_path', default='/root/autodl-tmp/output0.01-32/', type=str,
+    parser.add_argument('--bin_path', default='/root/output0.01/', type=str,
         help='Please specify path to the ImageNet training data.')
     parser.add_argument('--save_path', default='/root/autodl-fs/saved_image', type=str,
                         help='Path to save pre and post masked images')
@@ -147,62 +141,27 @@ def get_args_parser():
     parser.add_argument("--local_rank", default=0, type=int, help="Please ignore and do not set this argument.")
     return parser
 
-# def random_bin_image(bin_path):
-#     # 确保路径存在
-#     if not os.path.exists(bin_path):
-#         raise FileNotFoundError(f"指定的路径 {bin_path} 不存在。")
-#     if not os.access(bin_path, os.R_OK):
-#         raise PermissionError(f"指定的路径 {bin_path} 不可访问。")
-
-#     # 遍历output0.1目录下的子目录
-#     categories = [d for d in os.listdir(bin_path) if os.path.isdir(os.path.join(bin_path, d))]
-#     random.shuffle(categories)  # 打乱顺序以确保随机性
-#     for category in categories:
-#         category_path = os.path.join(bin_path, category)
-#         bin_images = [f for f in os.listdir(category_path) if os.path.isfile(os.path.join(category_path, f)) and f.endswith('.bmp')]
-#         if bin_images:  # 确保目录非空
-#             bin_image_name = random.choice(bin_images)
-#             bin_image_path = os.path.join(category_path, bin_image_name)
-#             return Image.open(bin_image_path)
-#     raise FileNotFoundError("在指定的路径中找不到二值图像。")
-
-# def apply_mask(input_image, mask_image):
-#     # 检查输入图像和遮挡图像的尺寸是否一致
-#     if input_image.size != mask_image.size:
-#         # 如果不一致，调整遮挡图像的尺寸以匹配输入图像
-#         mask_image = mask_image.resize(input_image.size, Image.ANTIALIAS)
-
-#     # 将遮挡图像应用到输入图像
-# #     output_image = Image.composite(input_image, mask_image, mask_image)
-#     output_image = Image.composite(input_image, mask_image, mask_image.convert("L"))
-#     return output_image
-
 def random_bin_image(bin_path):
-    # 确保路径存在
     if not os.path.exists(bin_path):
         raise FileNotFoundError(f"The specified path {bin_path} does not exist.")
     if not os.access(bin_path, os.R_OK):
         raise PermissionError(f"The specified path {bin_path} is not accessible.")
 
-    # 遍历output0.1目录下的子目录
     categories = [d for d in os.listdir(bin_path) if os.path.isdir(os.path.join(bin_path, d))]
-    random.shuffle(categories)  # 打乱顺序以确保随机性
+    random.shuffle(categories)  
     for category in categories:
         category_path = os.path.join(bin_path, category)
         bin_images = [f for f in os.listdir(category_path) if os.path.isfile(os.path.join(category_path, f)) and f.endswith('.bmp')]
-        if bin_images:  # 确保目录非空
+        if bin_images:  
             bin_image_name = random.choice(bin_images)
             bin_image_path = os.path.join(category_path, bin_image_name)
             return Image.open(bin_image_path)
     raise FileNotFoundError("No binary images found in the specified path.")
 
 def apply_mask(input_image, mask_image):
-    # 检查输入图像和遮挡图像的尺寸是否一致
     if input_image.size != mask_image.size:
-        # 如果不一致，调整输入图像的尺寸以匹配遮挡图像
         input_image = input_image.resize(mask_image.size, Image.ANTIALIAS)
 
-    # 应用掩码到输入图片
     output_image = Image.composite(input_image, Image.new('RGB', input_image.size, color='black'), mask_image)
     return output_image
 
@@ -219,8 +178,8 @@ def train_dino(args):
         args.global_crops_scale,
         args.local_crops_scale,
         args.local_crops_number,
-        args.bin_path,  # 使用新添加的参数
-        args.save_path,  # 新增参数，用于指定保存图片的路径
+        args.bin_path,  
+        args.save_path,  
     )
     dataset = datasets.ImageFolder(args.data_path, transform=transform)
     sampler = torch.utils.data.DistributedSampler(dataset, shuffle=True)
@@ -530,37 +489,12 @@ class DataAugmentationDINO(object):
         bin_image = random_bin_image(self.bin_path)
         image = apply_mask(image, bin_image)
         
-#         self.save_images(image,mask_image)
-        
         crops = []
         crops.append(self.global_transfo1(image))
         crops.append(self.global_transfo2(image))
         for _ in range(self.local_crops_number):
             crops.append(self.local_transfo(image))
         return crops
-
-#     def __call__(self, image):
-#         bin_image = random_bin_image(self.bin_path)
-#         image = apply_mask(image, bin_image)
-
-#         crops = []
-#         crops.append(self.global_transfo1(image))
-#         crops.append(self.global_transfo2(image))
-#         for _ in range(self.local_crops_number):
-#             crops.append(self.local_transfo(image))
-#         return [self.normalize(transformed_image) for transformed_image in crops]
-
-    
-#     def save_images(self, original_image, masked_image):
-#         # 创建保存路径
-#         if not os.path.exists(self.save_path):
-#             os.makedirs(self.save_path)
-#         # 生成唯一的文件名
-#         file_name = f"{random.randint(0, 999999)}"
-#         # 保存原始图片
-#         original_image.save(os.path.join(self.save_path, f"original_{file_name}.bmp"))
-#         # 保存遮挡后的图片
-#         masked_image.save(os.path.join(self.save_path, f"masked_{file_name}.bmp"))
 
 
 if __name__ == '__main__':
@@ -569,7 +503,6 @@ if __name__ == '__main__':
     Path(args.output_dir).mkdir(parents=True, exist_ok=True)
 #     train_dino(args)
     try:
-        # 尝试运行训练函数
         train_dino(args)
     except FileNotFoundError as e:
         print(f"Error: {e}")
